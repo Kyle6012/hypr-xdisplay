@@ -3,11 +3,16 @@ use std::path::PathBuf;
 use tokio::process::Command;
 use tracing::info;
 use crate::settings::Settings;
+use std::fs;
 
 fn get_screenshot_path(settings: &Settings) -> PathBuf {
     let now = chrono::Local::now();
     let timestamp = now.format(&settings.screenshot_filename_format).to_string();
-    settings.screenshot_dir.join(timestamp)
+    let dir = &settings.screenshot_dir;
+    if let Err(e) = fs::create_dir_all(dir) {
+        tracing::warn!("Failed to create screenshot directory: {}", e);
+    }
+    dir.join(timestamp)
 }
 
 pub async fn capture_fullscreen(settings: &Settings) -> Result<PathBuf> {
