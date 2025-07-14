@@ -7,8 +7,9 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::path::PathBuf;
 use std::process::Command;
-use glib::clone;
 use glib::MainContext;
+use glib::Priority;
+use glib::ControlFlow::Continue;
 
 pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Settings>) {
     let screenshot_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -74,52 +75,58 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
     // Button handlers
     let settings_clone = settings.clone();
     let show_screenshot_clone = show_screenshot.clone();
+    let ov_full = toast_overlay.clone();
     fullscreen_button.connect_clicked(move |_| {
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
+        let ov = ov_full.clone();
         glib::MainContext::default().spawn_local(async move {
             match screenshot::capture_fullscreen(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
-                    toast_overlay.add_toast(toast);
+                    ov.add_toast(toast);
                 }
             }
         });
     });
     let settings_clone = settings.clone();
     let show_screenshot_clone = show_screenshot.clone();
+    let ov_full = toast_overlay.clone();
     region_button.connect_clicked(move |_| {
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
+        let ov = ov_full.clone();
         glib::MainContext::default().spawn_local(async move {
             match screenshot::capture_region(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
-                    toast_overlay.add_toast(toast);
+                    ov.add_toast(toast);
                 }
             }
         });
     });
     let settings_clone = settings.clone();
     let show_screenshot_clone = show_screenshot.clone();
+    let ov_full = toast_overlay.clone();
     window_button.connect_clicked(move |_| {
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
+        let ov = ov_full.clone();
         glib::MainContext::default().spawn_local(async move {
             match screenshot::capture_focused_window(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
-                    toast_overlay.add_toast(toast);
+                    ov.add_toast(toast);
                 }
             }
         });
     });
 
     // Click preview to open screenshot
-    let last_screenshot_clone = last_screenshot.clone();
+    let _last_screenshot_clone = last_screenshot.clone();
     // If using GTK4, connect_gesture_click is preferred. If not available, comment this out.
     // preview_picture.connect_gesture_click(move |_, _| {
     //     if let Some(path) = last_screenshot_clone.borrow().as_ref() {
@@ -179,12 +186,14 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
     let last_screenshot_clone = last_screenshot.clone();
     let toast_overlay_clone = toast_overlay.clone();
 
-    let (sender, receiver) = MainContext::channel(glib::PRIORITY_DEFAULT);
+    #[allow(deprecated)]
+    let (sender, receiver) = MainContext::channel(Priority::DEFAULT);
 
-    receiver.attach(None, clone!(@weak toast_overlay_clone => @default-return glib::Continue(false), move |msg| {
-        toast_overlay_clone.add_toast(adw::Toast::builder().title(&msg).timeout(6).build());
-        glib::Continue(true)
-    }));
+    let toast_ov_clone = toast_overlay_clone.clone();
+    receiver.attach(None, move |msg| {
+        toast_ov_clone.add_toast(adw::Toast::builder().title(&msg).timeout(6).build());
+        Continue
+    });
 
     share_btn.connect_clicked(move |_| {
         if let Some(path) = last_screenshot_clone.borrow().as_ref() {

@@ -8,6 +8,8 @@ use std::rc::Rc;
 use std::path::PathBuf;
 use crate::recorder;
 use glib::clone;
+use glib::ControlFlow;
+use gtk::glib::Propagation;
 
 pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings>) {
     let recording_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -182,11 +184,12 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
     quality_combo.connect_changed(move |combo| {
         let mut s = (*settings_clone).clone();
         let idx = combo.active().unwrap_or(0);
+        let text = quality_entry.text();
         let quality = match idx {
             0 => "high",
             1 => "medium",
             2 => "low",
-            3 => quality_entry.text().as_str(),
+            3 => text.as_str(),
             _ => "high",
         };
         s.recorder_filename_format = format!("recording_%Y-%m-%d_%H-%M-%S_{}.mp4", quality);
@@ -219,11 +222,11 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         let _ = s.save();
     });
     let settings_clone = settings.clone();
-    hwaccel_switch.connect_state_set(move |sw, state| {
+    hwaccel_switch.connect_state_set(move |_, state| {
         let mut s = (*settings_clone).clone();
         s.recorder_hardware_accel = Some(state);
         let _ = s.save();
-        glib::Propagation::Stop
+        Propagation::Proceed
     });
     let settings_clone = settings.clone();
     audio_device_entry.connect_changed(move |entry| {
@@ -253,7 +256,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 let s = secs % 60;
                 timer_label.set_text(&format!("{:02}:{:02}:{:02}", h, m, s));
             }
-            glib::ControlFlow::Continue
+            ControlFlow::Continue
         });
     }
     // --- Button state logic ---
@@ -284,18 +287,21 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         *is_paused_clone.borrow_mut() = false;
         *elapsed_seconds_clone.borrow_mut() = 0;
         update_buttons_clone();
+        ()
     });
     let is_paused_clone = is_paused.clone();
     let update_buttons_clone = update_buttons.clone();
     pause_btn.connect_clicked(move |_| {
         *is_paused_clone.borrow_mut() = true;
         update_buttons_clone();
+        ()
     });
     let is_paused_clone = is_paused.clone();
     let update_buttons_clone = update_buttons.clone();
     resume_btn.connect_clicked(move |_| {
         *is_paused_clone.borrow_mut() = false;
         update_buttons_clone();
+        ()
     });
     let is_recording_clone = is_recording.clone();
     let is_paused_clone = is_paused.clone();
@@ -304,6 +310,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         *is_recording_clone.borrow_mut() = false;
         *is_paused_clone.borrow_mut() = false;
         update_buttons_clone();
+        ()
     });
 
     // --- Button handlers ---
@@ -328,6 +335,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 }
             }
         });
+        ()
     });
     let toast_overlay_clone = toast_overlay.clone();
     stop_btn.connect_clicked(move |_| {
@@ -358,6 +366,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 }
             }
         });
+        ()
     });
     let toast_overlay_clone = toast_overlay.clone();
     pause_btn.connect_clicked(move |_| {
@@ -374,6 +383,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 }
             }
         });
+        ()
     });
     let toast_overlay_clone = toast_overlay.clone();
     resume_btn.connect_clicked(move |_| {
@@ -390,7 +400,9 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 }
             }
         });
+        ()
     });
 
     // TODO: Wire up start, pause, resume, stop to backend and update last_recording, last_label, toasts, and settings as needed.
+    ()
 } 
