@@ -1,5 +1,5 @@
 <div align="center">
-  <img src="img.png" alt="Hypr-XDisplay Logo" width="180"/>
+  <img src="./src/img/img.png" alt="Hypr-XDisplay Logo" width="180"/>
 </div>
 
 # Hypr-XDisplay
