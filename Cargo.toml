@@ -2,6 +2,14 @@
 name = "hypr-xdisplay"
 version = "0.1.0"
 edition = "2021"
+authors = ["Meshack Bahati bahatikylemeshack@gmail.com"]
+description = "Modern, modular display and network streaming manager for Hyprland (Wayland) compositors."
+homepage = "https://github.com/Kyle6012/hypr-xdisplay"
+repository = "https://github.com/Kyle6012/hypr-xdisplay"
+readme = "README.md"
+license = "MIT"
+keywords = ["hyprland", "wayland", "display", "vnc", "screenshot", "screen-recording"]
+categories = ["gui", "network-programming", "multimedia", "wayland", "utilities"]
 
 [dependencies]
 anyhow = "1.0"
