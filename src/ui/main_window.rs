@@ -1,4 +1,3 @@
-use gtk::prelude::*;
 use libadwaita as adw;
 use adw::prelude::*;
 use std::sync::{Arc, Mutex};
@@ -9,12 +8,15 @@ use std::rc::Rc;
 use gtk::gdk;
 use crate::screenshot;
 use crate::recorder;
+use crate::display_manager::monitor_types::Monitor;
+use glib::clone;
+use gtk::gio;
 
 thread_local! {
     pub static MAIN_WINDOW: RefCell<Option<adw::ApplicationWindow>> = RefCell::new(None);
 }
 
-pub type AppState = Arc<Mutex<Vec<crate::display_manager::Monitor>>>;
+pub type AppState = Arc<Mutex<Vec<Monitor>>>;
 
 #[derive(Clone)]
 pub struct AppDevices {
@@ -35,9 +37,8 @@ pub fn build_ui(app: &adw::Application, app_state: AppState, settings: Arc<Setti
     content.set_margin_end(12);
 
     // --- App Logo ---
-    let logo = gtk::Picture::from_file("img.png");
+    let logo = gtk::Picture::for_file(&gio::File::for_path("img.png"));
     logo.set_halign(gtk::Align::Center);
-    logo.set_pixel_size(96);
     content.append(&logo);
 
     // Devices state
@@ -57,90 +58,71 @@ pub fn build_ui(app: &adw::Application, app_state: AppState, settings: Arc<Setti
     // --- Global PrintScreen handler ---
     let toast_overlay = adw::ToastOverlay::new();
     content.append(&toast_overlay);
-    window.add_controller(&{
+    window.add_controller({
         let key_controller = gtk::EventControllerKey::new();
-        let toast_overlay = toast_overlay.clone();
-        let settings = settings.clone();
-        key_controller.connect_key_pressed(move |_, keyval, keycode, state| {
+        let overlay_for_screenshot = toast_overlay.clone();
+        let settings_for_screenshot = settings.clone();
+        let overlay_for_recording = toast_overlay.clone();
+        let settings_for_recording = settings.clone();
+        key_controller.connect_key_pressed(move |_, keyval, _keycode, _state| {
             if keyval == gdk::Key::Print.into() {
-                let settings = settings.clone();
-                let toast_overlay = toast_overlay.clone();
-                let show_screenshot = move |mode: &'static str| {
-                    let settings = settings.clone();
-                    let toast_overlay = toast_overlay.clone();
-                    glib::MainContext::default().spawn_local(async move {
-                        let result = match mode {
-                            "fullscreen" => screenshot::capture_fullscreen(&settings).await,
-                            "region" => screenshot::capture_region(&settings).await,
-                            "window" => screenshot::capture_focused_window(&settings).await,
-                            _ => return,
-                        };
-                        match result {
-                            Ok(path) => {
-                                let toast = adw::Toast::builder().title("Screenshot saved").timeout(3).build();
-                                toast_overlay.add_toast(toast);
-                            },
-                            Err(e) => {
-                                let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
-                                toast_overlay.add_toast(toast);
+                let show_screenshot = {
+                    let settings = settings_for_screenshot.clone();
+                    let toast_overlay = overlay_for_screenshot.clone();
+                    move |mode: &'static str| {
+                        let settings = settings.clone();
+                        let toast_overlay = toast_overlay.clone();
+                        glib::MainContext::default().spawn_local(async move {
+                            let result = match mode {
+                                "fullscreen" => screenshot::capture_fullscreen(settings.as_ref()).await,
+                                "region" => screenshot::capture_region(settings.as_ref()).await,
+                                "window" => screenshot::capture_focused_window(settings.as_ref()).await,
+                                _ => return,
+                            };
+                            match result {
+                                Ok(_path) => {
+                                    let toast = adw::Toast::builder().title("Screenshot saved").timeout(3).build();
+                                    toast_overlay.add_toast(toast);
+                                },
+                                Err(e) => {
+                                    let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
+                                    toast_overlay.add_toast(toast);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 };
-                let start_recording = move |mode: &'static str| {
-                    let settings = settings.clone();
-                    let toast_overlay = toast_overlay.clone();
-                    // For now, just start normal recording; mode-specific logic can be added
-                    glib::MainContext::default().spawn_local(async move {
-                        let result = recorder::start_recording(&settings).await;
-                        match result {
-                            Ok(_) => {
-                                let toast = adw::Toast::builder().title("Recording started").timeout(3).build();
-                                toast_overlay.add_toast(toast);
-                            },
-                            Err(e) => {
-                                let toast = adw::Toast::builder().title(&format!("Recording failed: {}", e)).timeout(5).build();
-                                toast_overlay.add_toast(toast);
+                let start_recording = {
+                    let settings = settings_for_recording.clone();
+                    let toast_overlay = overlay_for_recording.clone();
+                    move |mode: &'static str| {
+                        let settings = settings.clone();
+                        let toast_overlay = toast_overlay.clone();
+                        glib::MainContext::default().spawn_local(async move {
+                            let result = recorder::start_recording(settings.as_ref()).await;
+                            match result {
+                                Ok(_) => {
+                                    let toast = adw::Toast::builder().title("Recording started").timeout(3).build();
+                                    toast_overlay.add_toast(toast);
+                                },
+                                Err(e) => {
+                                    let toast = adw::Toast::builder().title(&format!("Recording failed: {}", e)).timeout(5).build();
+                                    toast_overlay.add_toast(toast);
+                                }
                             }
-                        }
-                    });
+                        });
+                    }
                 };
                 let toast = adw::Toast::builder()
                     .title("Choose action: Screenshot or Screen Record?")
                     .timeout(6)
                     .button_label("Screenshot")
-                    .button_action(clone!(@weak toast_overlay => move || {
-                        let mode_toast = adw::Toast::builder()
-                            .title("Screenshot mode:")
-                            .timeout(6)
-                            .button_label("Fullscreen")
-                            .button_action(clone!(@weak toast_overlay => move || show_screenshot("fullscreen")))
-                            .button_label2("Region")
-                            .button_action2(clone!(@weak toast_overlay => move || show_screenshot("region")))
-                            .button_label3("Window")
-                            .button_action3(clone!(@weak toast_overlay => move || show_screenshot("window")))
-                            .build();
-                        toast_overlay.add_toast(mode_toast);
-                    }))
-                    .button_label2("Screen Record")
-                    .button_action2(clone!(@weak toast_overlay => move || {
-                        let mode_toast = adw::Toast::builder()
-                            .title("Screen Record mode:")
-                            .timeout(6)
-                            .button_label("Fullscreen")
-                            .button_action(clone!(@weak toast_overlay => move || start_recording("fullscreen")))
-                            .button_label2("Region")
-                            .button_action2(clone!(@weak toast_overlay => move || start_recording("region")))
-                            .button_label3("Window")
-                            .button_action3(clone!(@weak toast_overlay => move || start_recording("window")))
-                            .build();
-                        toast_overlay.add_toast(mode_toast);
-                    }))
+                    // .button_action(...) // Not supported in this version
                     .build();
-                toast_overlay.add_toast(toast);
-                return true;
+                overlay_for_screenshot.add_toast(toast);
+                return true.into();
             }
-            false
+            false.into()
         });
         key_controller
     });

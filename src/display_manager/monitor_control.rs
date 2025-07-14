@@ -1,4 +1,4 @@
-use crate::display_manager::monitor_types::{Monitor, Workspace};
+use crate::display_manager::monitor_types::Monitor;
 use std::process::Stdio;
 use tokio::process::Command;
 
@@ -39,9 +39,7 @@ pub async fn apply_monitor_layout(monitors: &[Monitor]) -> anyhow::Result<()> {
     let mut current_x = 0;
     for monitor in monitors {
         let mode = monitor.mode.as_deref().unwrap_or("Extended");
-        let orientation = monitor.orientation.as_deref().unwrap_or("Landscape");
         let scaling = monitor.scaling.unwrap_or(monitor.scale);
-        let transform = if orientation == "Portrait" { 1 } else { 0 };
         let (width, height, refresh_rate, x, y) = if mode == "Copy" {
             if let Some((w, h, r, x, y)) = extended_geometry {
                 (w, h, r, x, y)
@@ -52,7 +50,7 @@ pub async fn apply_monitor_layout(monitors: &[Monitor]) -> anyhow::Result<()> {
             (monitor.width, monitor.height, monitor.refresh_rate, current_x, monitor.y)
         };
         let command = format!(
-            "keyword monitor {},{}x{}@{},{}x{},{}; keyword monitor {} scale {};",
+            "keyword monitor {},{}x{}@{},{}x{}; keyword monitor {} scale {};",
             monitor.name, width, height, refresh_rate, x, y, monitor.name, scaling
         );
         command_batch.push_str(&command);

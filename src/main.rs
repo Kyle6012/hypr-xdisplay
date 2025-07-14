@@ -3,13 +3,8 @@ use libadwaita as adw;
 use adw::prelude::*;
 use std::sync::{Arc, Mutex};
 use tracing::{error, info, warn};
-use crate::settings::Settings;
-use crate::ui::main_window::{build_ui, AppState};
-
-mod display_manager;
-mod network_display;
-mod settings;
-mod ui;
+use hypr_xdisplay::settings::Settings;
+use hypr_xdisplay::ui::main_window::{build_ui, AppState};
 
 #[tokio::main]
 async fn main() {

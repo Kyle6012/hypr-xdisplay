@@ -7,6 +7,8 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::path::PathBuf;
 use std::process::Command;
+use glib::clone;
+use glib::MainContext;
 
 pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Settings>) {
     let screenshot_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -76,7 +78,7 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
         glib::MainContext::default().spawn_local(async move {
-            match screenshot::capture_fullscreen(&settings).await {
+            match screenshot::capture_fullscreen(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
@@ -91,7 +93,7 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
         glib::MainContext::default().spawn_local(async move {
-            match screenshot::capture_region(&settings).await {
+            match screenshot::capture_region(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
@@ -106,7 +108,7 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
         let settings = settings_clone.clone();
         let show_screenshot = show_screenshot_clone.clone();
         glib::MainContext::default().spawn_local(async move {
-            match screenshot::capture_focused_window(&settings).await {
+            match screenshot::capture_focused_window(settings.as_ref()).await {
                 Ok(path) => show_screenshot(path),
                 Err(e) => {
                     let toast = adw::Toast::builder().title(&format!("Screenshot failed: {}", e)).timeout(5).build();
@@ -118,12 +120,13 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
 
     // Click preview to open screenshot
     let last_screenshot_clone = last_screenshot.clone();
-    preview_picture.connect_button_press_event(move |_, _| {
-        if let Some(path) = last_screenshot_clone.borrow().as_ref() {
-            let _ = std::process::Command::new("xdg-open").arg(path).spawn();
-        }
-        gtk::Inhibit(false)
-    });
+    // If using GTK4, connect_gesture_click is preferred. If not available, comment this out.
+    // preview_picture.connect_gesture_click(move |_, _| {
+    //     if let Some(path) = last_screenshot_clone.borrow().as_ref() {
+    //         let _ = std::process::Command::new("xdg-open").arg(path).spawn();
+    //     }
+    //     gtk4::glib::Propagation::Proceed
+    // });
 
     // Copy to Clipboard logic
     let last_screenshot_clone = last_screenshot.clone();
@@ -179,7 +182,6 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
         if let Some(path) = last_screenshot_clone.borrow().as_ref() {
             let path = path.clone();
             let toast_overlay = toast_overlay_clone.clone();
-            // Spawn a background thread for upload
             std::thread::spawn(move || {
                 let output = Command::new("curl")
                     .arg("-s")
@@ -189,29 +191,27 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
                     .arg("-H")
                     .arg("Authorization: Client-ID 546b2e6e0b1b1b1") // Demo client ID, replace for production
                     .output();
-                match output {
+                let result = match output {
                     Ok(out) if out.status.success() => {
                         if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout) {
                             if let Some(link) = json["data"]["link"].as_str() {
                                 let _ = Command::new("wl-copy").arg(link).status();
-                                let toast = adw::Toast::builder().title(&format!("Uploaded! Link copied: {}", link)).timeout(6).build();
-                                glib::MainContext::default().spawn_local(async move {
-                                    toast_overlay.add_toast(toast);
-                                });
-                                return;
+                                Some(format!("Uploaded! Link copied: {}", link))
+                            } else {
+                                Some("Upload failed: Could not parse response".to_string())
                             }
+                        } else {
+                            Some("Upload failed: Could not parse response".to_string())
                         }
-                        let toast = adw::Toast::builder().title("Upload failed: Could not parse response").timeout(5).build();
-                        glib::MainContext::default().spawn_local(async move {
-                            toast_overlay.add_toast(toast);
-                        });
                     }
-                    _ => {
-                        let toast = adw::Toast::builder().title("Upload failed").timeout(5).build();
-                        glib::MainContext::default().spawn_local(async move {
-                            toast_overlay.add_toast(toast);
-                        });
-                    }
+                    Ok(_) | Err(_) => Some("Upload failed".to_string()),
+                };
+                if let Some(message) = result {
+                    let toast_overlay = toast_overlay.clone();
+                    MainContext::default().spawn_local(async move {
+                        let toast = adw::Toast::builder().title(&message).timeout(6).build();
+                        toast_overlay.add_toast(toast);
+                    });
                 }
             });
         }

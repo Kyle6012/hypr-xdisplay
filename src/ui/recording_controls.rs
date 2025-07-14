@@ -6,8 +6,9 @@ use libadwaita as adw;
 use std::cell::RefCell;
 use std::rc::Rc;
 use std::path::PathBuf;
-use std::process::Command;
 use crate::recorder;
+use glib::ControlFlow::Continue;
+use glib::clone;
 
 pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings>) {
     let recording_box = gtk::Box::new(gtk::Orientation::Horizontal, 6);
@@ -223,7 +224,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         let mut s = (*settings_clone).clone();
         s.recorder_hardware_accel = Some(state);
         let _ = s.save();
-        gtk::Inhibit(false)
+        Continue
     });
     let settings_clone = settings.clone();
     audio_device_entry.connect_changed(move |entry| {
@@ -253,7 +254,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 let s = secs % 60;
                 timer_label.set_text(&format!("{:02}:{:02}:{:02}", h, m, s));
             }
-            glib::Continue(true)
+            Continue
         });
     }
     // --- Button state logic ---
@@ -317,7 +318,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         let last_label = last_label_clone.clone();
         let toast_overlay = toast_overlay_clone.clone();
         glib::MainContext::default().spawn_local(async move {
-            match recorder::start_recording(&settings).await {
+            match recorder::start_recording(settings.as_ref()).await {
                 Ok(_) => {
                     let toast = adw::Toast::builder().title("Recording started").timeout(3).build();
                     toast_overlay.add_toast(toast);
