@@ -7,7 +7,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 use std::path::PathBuf;
 use crate::recorder;
-use glib::ControlFlow::Continue;
 use glib::clone;
 
 pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings>) {
@@ -224,7 +223,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
         let mut s = (*settings_clone).clone();
         s.recorder_hardware_accel = Some(state);
         let _ = s.save();
-        Continue
+        glib::Propagation::Stop
     });
     let settings_clone = settings.clone();
     audio_device_entry.connect_changed(move |entry| {
@@ -254,7 +253,7 @@ pub fn add_recording_controls_section(content: &gtk::Box, settings: Arc<Settings
                 let s = secs % 60;
                 timer_label.set_text(&format!("{:02}:{:02}:{:02}", h, m, s));
             }
-            Continue
+            glib::ControlFlow::Continue
         });
     }
     // --- Button state logic ---

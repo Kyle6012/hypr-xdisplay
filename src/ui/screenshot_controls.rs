@@ -178,10 +178,18 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
     // Share/Upload logic (imgur, anonymous)
     let last_screenshot_clone = last_screenshot.clone();
     let toast_overlay_clone = toast_overlay.clone();
+
+    let (sender, receiver) = MainContext::channel(glib::PRIORITY_DEFAULT);
+
+    receiver.attach(None, clone!(@weak toast_overlay_clone => @default-return glib::Continue(false), move |msg| {
+        toast_overlay_clone.add_toast(adw::Toast::builder().title(&msg).timeout(6).build());
+        glib::Continue(true)
+    }));
+
     share_btn.connect_clicked(move |_| {
         if let Some(path) = last_screenshot_clone.borrow().as_ref() {
             let path = path.clone();
-            let toast_overlay = toast_overlay_clone.clone();
+            let sender = sender.clone();
             std::thread::spawn(move || {
                 let output = Command::new("curl")
                     .arg("-s")
@@ -191,28 +199,28 @@ pub fn add_screenshot_controls_section(content: &gtk::Box, settings: Arc<Setting
                     .arg("-H")
                     .arg("Authorization: Client-ID 546b2e6e0b1b1b1") // Demo client ID, replace for production
                     .output();
-                let result = match output {
+
+                let message = match output {
                     Ok(out) if out.status.success() => {
                         if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&out.stdout) {
                             if let Some(link) = json["data"]["link"].as_str() {
-                                let _ = Command::new("wl-copy").arg(link).status();
-                                Some(format!("Uploaded! Link copied: {}", link))
+                                let _ = Command::new("wl-copy").arg(link).status(); // Consider making this async or handling errors better
+                                format!("Uploaded! Link copied: {}", link)
                             } else {
-                                Some("Upload failed: Could not parse response".to_string())
+                                "Upload failed: Could not parse response".to_string()
                             }
                         } else {
-                            Some("Upload failed: Could not parse response".to_string())
+                            "Upload failed: Could not parse response".to_string()
                         }
                     }
-                    Ok(_) | Err(_) => Some("Upload failed".to_string()),
+                    Ok(out) => {
+                        let stderr = String::from_utf8_lossy(&out.stderr);
+                        format!("Upload failed: {}", stderr)
+                    },
+                    Err(e) => format!("Upload failed: {}", e),
                 };
-                if let Some(message) = result {
-                    let toast_overlay = toast_overlay.clone();
-                    MainContext::default().spawn_local(async move {
-                        let toast = adw::Toast::builder().title(&message).timeout(6).build();
-                        toast_overlay.add_toast(toast);
-                    });
-                }
+
+                sender.send(message).expect("Failed to send message to main thread");
             });
         }
     });
