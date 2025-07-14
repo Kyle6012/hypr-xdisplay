@@ -4,6 +4,8 @@
 
 # Hypr-XDisplay
 
+[**License**](LICENSE) | [**Contributing**](CONTRIBUTING.md)
+
 A modern, modular display and network streaming manager for Hyprland (Wayland) compositors. Supports physical, wireless, Android/mobile, and network displays, with advanced screenshot and screen recording utilities.
 
 ---
@@ -95,7 +97,6 @@ cargo build --release
 - **Screen sharing** is enabled via PipeWire and xdg-desktop-portal-hyprland
 - **Screenshot/recording** use grim, slurp, wf-recorder, and integrate with clipboard, annotation, and upload tools
 
-
 ---
 
 ## Troubleshooting
@@ -113,14 +114,14 @@ cargo build --release
 ---
 
 ## Contributing
-- PRs and issues welcome! See [CONTRIBUTING.md] if available.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on how to contribute, report issues, and request features.
+
+---
+
+## License
+This project is licensed under the terms of the [MIT License](LICENSE). 
 
 ---
 
 ## Author
-- Meshack Bahati
-
---
-
-## License
-MIT 
+Meshack Bahati 
