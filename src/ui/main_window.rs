@@ -9,7 +9,6 @@ use gtk::gdk;
 use crate::screenshot;
 use crate::recorder;
 use crate::display_manager::monitor_types::Monitor;
-use glib::clone;
 use gtk::gio;
 
 thread_local! {
@@ -66,14 +65,14 @@ pub fn build_ui(app: &adw::Application, app_state: AppState, settings: Arc<Setti
         let settings_for_recording = settings.clone();
         key_controller.connect_key_pressed(move |_, keyval, _keycode, _state| {
             if keyval == gdk::Key::Print.into() {
-                let show_screenshot = {
+                let _show_screenshot = {
                     let settings = settings_for_screenshot.clone();
                     let toast_overlay = overlay_for_screenshot.clone();
-                    move |mode: &'static str| {
+                    move |_mode: &'static str| {
                         let settings = settings.clone();
                         let toast_overlay = toast_overlay.clone();
                         glib::MainContext::default().spawn_local(async move {
-                            let result = match mode {
+                            let result = match _mode {
                                 "fullscreen" => screenshot::capture_fullscreen(settings.as_ref()).await,
                                 "region" => screenshot::capture_region(settings.as_ref()).await,
                                 "window" => screenshot::capture_focused_window(settings.as_ref()).await,
@@ -92,10 +91,10 @@ pub fn build_ui(app: &adw::Application, app_state: AppState, settings: Arc<Setti
                         });
                     }
                 };
-                let start_recording = {
+                let _start_recording = {
                     let settings = settings_for_recording.clone();
                     let toast_overlay = overlay_for_recording.clone();
-                    move |mode: &'static str| {
+                    move |_mode: &'static str| {
                         let settings = settings.clone();
                         let toast_overlay = toast_overlay.clone();
                         glib::MainContext::default().spawn_local(async move {
