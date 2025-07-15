@@ -1,8 +1,8 @@
-pub mod display_manager;
+pub mod settings;
 pub mod screenshot;
 pub mod recorder;
-pub mod event_listener;
-pub mod settings;
+pub mod display_manager;
+pub mod network_display;
+pub mod ui;
 pub mod wireless;
 pub mod android;
-pub mod ui;
